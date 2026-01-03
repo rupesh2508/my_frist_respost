@@ -1,0 +1,101 @@
+import os
+import shutil
+import time
+from tkinter import Tk, Button, Label, filedialog, Checkbutton, IntVar
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+
+FILE_TYPES = {
+    "Images": [".jpg", ".jpeg", ".png", ".gif"],
+    "Documents": [".pdf", ".docx", ".txt", ".pptx"],
+    "Music": [".mp3", ".wav"],
+    "Videos": [".mp4", ".mov", ".mkv"],
+    "Archives": [".zip", ".rar", ".7z"],
+}
+def organize_files(folder_path):
+    if not folder_path:
+        return "No folder selected!"
+    for file in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file)
+        if os.path.isfile(file_path):
+            moved = False
+            for folder, extensions in FILE_TYPES.items():
+                if file.lower().endswith(tuple(extensions)):
+                    target_folder = os.path.join(folder_path, folder)
+                    os.makedirs(target_folder, exist_ok=True)
+                    shutil.move(file_path, os.path.join(target_folder, file))
+                    log_move(file, folder)
+                    moved = True
+                    break
+            if not moved:
+                other_folder = os.path.join(folder_path, "Others")
+                os.makedirs(other_folder, exist_ok=True)
+                shutil.move(file_path, os.path.join(other_folder, file))
+                log_move(file, "Others")
+    print("Files Organized Successfully!")
+
+# ---------------------------
+# Logging Function
+# ---------------------------
+def log_move(file_name, folder):
+    with open("file_organizer_log.txt", "a") as f:
+        f.write(f"{time.ctime()} - Moved {file_name} -> {folder}\n")
+
+# ---------------------------
+# Real-Time Monitoring
+# ---------------------------
+class FileHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if not event.is_directory:
+            organize_files(folder_path_var.get())
+
+def start_monitoring():
+    folder = folder_path_var.get()
+    if folder:
+        observer = Observer()
+        observer.schedule(FileHandler(), folder, recursive=False)
+        observer.start()
+        print(f"Monitoring folder: {folder}")
+        return observer
+
+# ---------------------------
+# GUI Setup
+# ---------------------------
+def select_folder():
+    folder_selected = filedialog.askdirectory()
+    folder_path_var.set(folder_selected)
+    label.config(text=f"Selected Folder: {folder_selected}")
+
+def organize_now():
+    organize_files(folder_path_var.get())
+    label.config(text="Files Organized!")
+
+def toggle_monitor():
+    if monitor_var.get():
+        global observer
+        observer = start_monitoring()
+        label.config(text="Real-time monitoring ON")
+    else:
+        observer.stop()
+        observer.join()
+        label.config(text="Real-time monitoring OFF")
+
+# Main GUI
+root = Tk()
+root.title("Smart File Organizer")
+root.geometry("500x200")
+
+folder_path_var = IntVar()
+folder_path_var.set("")
+
+monitor_var = IntVar()
+observer = None
+
+Button(root, text="Select Folder", command=select_folder).pack(pady=10)
+Button(root, text="Organize Now", command=organize_now).pack(pady=10)
+Checkbutton(root, text="Real-time Monitoring", variable=monitor_var, command=toggle_monitor).pack(pady=10)
+label = Label(root, text="Select a folder to organize")
+label.pack(pady=10)
+
+root.mainloop()
